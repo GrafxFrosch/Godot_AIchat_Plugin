@@ -15,7 +15,7 @@ var history_mem: Array[String] = []
 func askAI(prompt: String):
 	# Wir wandeln das Array in einen einzelnen String um, damit Python es leicht lesen kann
 	var history_string = " | ".join(history_mem)
-	ask(prompt, history_string, api_key)
+	return ask(prompt, history_string, api_key)
 
 func ask(prompt: String, history: String, apikey: String) -> String:
 	var output = []
@@ -29,7 +29,7 @@ func ask(prompt: String, history: String, apikey: String) -> String:
 	], output, true)
 
 	print("Exit Code: ", exit_code)
-	print("Vollständiger Output: ", output) # Schau hier genau hin!
+	print("Full Output: ", output) # Schau hier genau hin!
 
 	if exit_code == 0 and output.size() > 0:
 		var text = output[0].strip_edges() # strip_edges entfernt unnötige Zeilenumbrüche
