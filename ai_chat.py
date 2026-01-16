@@ -1,115 +1,96 @@
-from typing import TypedDict, List
+from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
-from langchain_openai import AzureChatOpenAI
-
-
-# Initialize the Azure model from the local AzurChat module
-
+from langchain_openai import ChatOpenAI  # Wir nutzen ChatOpenAI für den Key
+import argparse
 
 
 # ==============================================================================
-# HELPER FUNCTIONS
+# STATE DEFINITIONS
 # ==============================================================================
-def getAzure(endpoint:str,apikey:str):
-    return AzureChatOpenAI(
-        azure_endpoint=endpoint,
-        model="gpt-4o-mini",
-        api_key= apikey,
-        api_version="2024-08-01-preview",
-    )
 
-def ask_model(prompt: str) -> str:
+class AgentState(TypedDict):
     """
-    Queries the Azure model and returns the cleaned text response.
+    Der State hält alle Daten während der Ausführung des Graphen.
     """
-    response = model.invoke(prompt)
-
-    # Check if response contains a message object with a content attribute
-    if hasattr(response, "content"):
-        return response.content.strip()
-    return str(response).strip()
-
-
-# ==============================================================================
-# STATE DEFINITIONS (TypedDicts)
-# ==============================================================================
-
-class InputState(TypedDict):
-    """Defines the structure for input data passed to the graph."""
     user_input: str
     history: str
-
-
-class OutputState(TypedDict):
-    """Defines the structure for output data produced by the graph."""
-    output: TypedDict
+    output: str  # Hier speichern wir das Ergebnis
 
 
 # ==============================================================================
 # GRAPH NODES
 # ==============================================================================
 
-def generate_response(state: InputState) -> dict:
+def generate_response(state: AgentState):
     """
-    Node 1: Generates a response based on the user input and conversation history.
+    Node: Generiert eine Antwort basierend auf dem Input.
+    'model' muss global oder im Scope verfügbar sein.
     """
-    prompt =  f"""
-    You are Integrated in a Godot Project as an helpful AI assistant you execute the following prompt:
-    {state["user_input"]}
+    prompt = f"""
+    You are integrated in a Godot Project as a helpful AI assistant.
+    History: {state["history"]}
+    User Input: {state["user_input"]}
     """
-    # Invoke model with user input combined with the system prompt instructions
-    response = ask_model(state["user_input"] + " Your task:" + prompt)
-    return {"output": response}
+
+    # Aufruf des Modells (model wird unten initialisiert)
+    response = model.invoke(prompt)
+
+    # Rückgabe des Updates für den State
+    return {"output": response.content}
 
 
 # ==============================================================================
 # GRAPH CONSTRUCTION
 # ==============================================================================
 
-# Initialize the StateGraph with the defined state schemas
-builder = StateGraph(
-    state_schema=OutputState,
-    input_schema=InputState,
-    output_schema=OutputState
-)
+def create_graph():
+    # Wir definieren den Graphen mit dem AgentState
+    builder = StateGraph(AgentState)
 
-# Add nodes to the graph
-builder.add_node("response", generate_response)
+    # Node hinzufügen
+    builder.add_node("response_node", generate_response)
 
-# Define the workflow edges
-builder.add_edge(START, "response")
-builder.add_edge("response", END)
+    # Ablauf definieren
+    builder.add_edge(START, "response_node")
+    builder.add_edge("response_node", END)
 
-# Compile the graph into an executable state machine
-graph = builder.compile()
+    return builder.compile()
 
 
 # ==============================================================================
-# INTERFACE FUNCTIONS (Exported)
+# INTERFACE FUNCTIONS
 # ==============================================================================
 
-def askChatter(input: str, history: str) -> str:
+def askChatter(user_query: str, history: str, compiled_graph) -> str:
     """
-    Main interface to interact with the chatter agent.
-    Invokes the graph logic and returns the resulting dictionary.
+    Startet den Graphen mit den entsprechenden Inputs.
     """
-    result = graph.invoke({"user_input": input, "history": history})
-    return result
+    inputs = {
+        "user_input": user_query,
+        "history": history
+    }
+    result = compiled_graph.invoke(inputs)
+    return result["output"]
 
 
 # ==============================================================================
-# MAIN EXECUTION (Entry Point)
+# MAIN EXECUTION
 # ==============================================================================
-import sys
-import argparse
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt", required=True)
-    parser.add_argument("--history", default="")
-    parser.add_argument("--endpoint", required=True)
+    parser.add_argument("--history", nargs='?', default="")  # Das '?' erlaubt leere Werte
     parser.add_argument("--apikey", required=True)
     args = parser.parse_args()
 
-    model = getAzure(args.endpoint, args.apikey)
-    print(askChatter(args.prompt, args.history))
+    # 1. Modell initialisieren mit dem übergebenen Key
+    # Hier kannst du 'gpt-4o' oder 'gpt-3.5-turbo' nutzen
+    model = ChatOpenAI(openai_api_key=args.apikey, model="gpt-4o-mini")
+
+    # 2. Graph erstellen
+    graph = create_graph()
+
+    # 3. Ausführen und Ergebnis drucken
+    final_output = askChatter(args.prompt, args.history, graph)
+    print(final_output)
