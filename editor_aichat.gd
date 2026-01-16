@@ -33,5 +33,5 @@ func _on_add_ai_manager_pressed():
 	ai_manager_instance.owner = current_scene  # Damit es gespeichert wird
 
 	# Optional: Fokus auf neuen Node
-	get_editor_interface().get_scene_tree_dock().select(ai_manager_instance)
+	get_editor_interface().edit_node(ai_manager_instance)
 	print("AI_Manager Node added to scene")
